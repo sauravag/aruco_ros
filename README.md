@@ -3,6 +3,19 @@ aruco_ros
 
 Software package and ROS wrappers of the [Aruco][1] Augmented Reality marker detector library.
 
+### Usage
+
+1. You need to install the usb_webcam package to read the camera image
+2. You need to install the pal robotics vision segmentation package.
+3. $cd ~/catkin_ws/src/
+4. $git clone https://github.com/pal-robotics/pal_vision_segmentation.git
+5. $cd ~/catkin_ws
+6. $catkin_make install
+7. $cd ~/catkin_ws/src/aruco_ros/aruco_ros/launch
+8. $roslaunch marker_publisher.launch 
+9. In another terminal: $rostopic echo /aruco_marker_publisher/markers
+
+You should now be able to see the published marker poses that are detected in the camera feed. Make sure that your camera is calibrated and in the launch file, you pass the correct URI for the camera_info parameter (calibration yml file). Without this, you will not get the pose of the marker.
 
 ### Features
 <img align="right" src="https://raw.github.com/pal-robotics/aruco_ros/master/aruco_ros/etc/marker_in_hand.jpg" />
