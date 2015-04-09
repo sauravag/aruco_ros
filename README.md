@@ -9,6 +9,7 @@ Software package and ROS wrappers of the [Aruco][1] Augmented Reality marker det
 2. You need to install the pal robotics vision segmentation package.
 3. $cd ~/catkin_ws/src/
 4. $git clone https://github.com/pal-robotics/pal_vision_segmentation.git
+5. $git clone https://github.com/sauravag/aruco_ros.git
 5. $cd ~/catkin_ws
 6. $catkin_make install
 7. $cd ~/catkin_ws/src/aruco_ros/aruco_ros/launch
