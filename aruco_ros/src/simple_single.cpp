@@ -45,6 +45,7 @@ or implied, of Rafael Muñoz Salinas.
 #include <aruco_ros/aruco_ros_utils.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
+#include <visualization_msgs/Marker.h>
 
 using namespace aruco;
 
@@ -64,6 +65,8 @@ private:
   ros::Publisher pose_pub;
   ros::Publisher transform_pub; 
   ros::Publisher position_pub;
+  ros::Publisher marker_pub; //rviz visualization marker
+  ros::Publisher pixel_pub;
   std::string marker_frame;
   std::string camera_frame;
   std::string reference_frame;
@@ -83,6 +86,31 @@ public:
       nh("~"),
       it(nh)
   {
+
+    std::string refinementMethod;
+    nh.param<std::string>("corner_refinement", refinementMethod, "LINES");
+    if ( refinementMethod == "SUBPIX" )
+      mDetector.setCornerRefinementMethod(aruco::MarkerDetector::SUBPIX);
+    else if ( refinementMethod == "HARRIS" )
+      mDetector.setCornerRefinementMethod(aruco::MarkerDetector::HARRIS);
+    else if ( refinementMethod == "NONE" )
+      mDetector.setCornerRefinementMethod(aruco::MarkerDetector::NONE); 
+    else      
+      mDetector.setCornerRefinementMethod(aruco::MarkerDetector::LINES); 
+
+    //Print parameters of aruco marker detector:
+    ROS_INFO_STREAM("Corner refinement method: " << mDetector.getCornerRefinementMethod());
+    ROS_INFO_STREAM("Threshold method: " << mDetector.getThresholdMethod());
+    double th1, th2;
+    mDetector.getThresholdParams(th1, th2);
+    ROS_INFO_STREAM("Threshold method: " << " th1: " << th1 << " th2: " << th2);
+    float mins, maxs;
+    mDetector.getMinMaxSize(mins, maxs);
+    ROS_INFO_STREAM("Marker size min: " << mins << "  max: " << maxs);
+    ROS_INFO_STREAM("Desired speed: " << mDetector.getDesiredSpeed());
+    
+
+
     image_sub = it.subscribe("/image", 1, &ArucoSimple::image_callback, this);
     cam_info_sub = nh.subscribe("/camera_info", 1, &ArucoSimple::cam_info_callback, this);
 
@@ -91,6 +119,8 @@ public:
     pose_pub = nh.advertise<geometry_msgs::PoseStamped>("pose", 100);
     transform_pub = nh.advertise<geometry_msgs::TransformStamped>("transform", 100);
     position_pub = nh.advertise<geometry_msgs::Vector3Stamped>("position", 100);
+    marker_pub = nh.advertise<visualization_msgs::Marker>("marker", 10);
+    pixel_pub = nh.advertise<geometry_msgs::PointStamped>("pixel", 10);
 
     nh.param<double>("marker_size", marker_size, 0.05);
     nh.param<int>("marker_id", marker_id, 300);
@@ -151,6 +181,7 @@ public:
     static tf::TransformBroadcaster br;
     if(cam_info_received)
     {
+      ros::Time curr_stamp(ros::Time::now());
       cv_bridge::CvImagePtr cv_ptr;
       try
       {
@@ -183,13 +214,13 @@ public:
               * static_cast<tf::Transform>(rightToLeft) 
               * transform;
 
-            tf::StampedTransform stampedTransform(transform, ros::Time::now(),
+            tf::StampedTransform stampedTransform(transform, curr_stamp,
                                                   reference_frame, marker_frame);
             br.sendTransform(stampedTransform);
             geometry_msgs::PoseStamped poseMsg;
             tf::poseTFToMsg(transform, poseMsg.pose);
             poseMsg.header.frame_id = reference_frame;
-            poseMsg.header.stamp = ros::Time::now();
+            poseMsg.header.stamp = curr_stamp;
             pose_pub.publish(poseMsg);
 
             geometry_msgs::TransformStamped transformMsg;
@@ -200,6 +231,32 @@ public:
             positionMsg.header = transformMsg.header;
             positionMsg.vector = transformMsg.transform.translation;
             position_pub.publish(positionMsg);
+
+            geometry_msgs::PointStamped pixelMsg;
+            pixelMsg.header = transformMsg.header;
+            pixelMsg.point.x = markers[i].getCenter().x;
+            pixelMsg.point.y = markers[i].getCenter().y;
+            pixelMsg.point.z = 0;
+            pixel_pub.publish(pixelMsg);
+
+            //Publish rviz marker representing the ArUco marker patch
+            visualization_msgs::Marker visMarker;
+            visMarker.header = transformMsg.header;
+            visMarker.pose = poseMsg.pose;
+            visMarker.id = 1;
+            visMarker.type   = visualization_msgs::Marker::CUBE;
+            visMarker.action = visualization_msgs::Marker::ADD;
+            visMarker.pose = poseMsg.pose;
+            visMarker.scale.x = marker_size;
+            visMarker.scale.y = 0.001;
+            visMarker.scale.z = marker_size;
+            visMarker.color.r = 1.0;
+            visMarker.color.g = 0;
+            visMarker.color.b = 0;
+            visMarker.color.a = 1.0;
+            visMarker.lifetime = ros::Duration(3.0);
+            marker_pub.publish(visMarker);
+
           }
           // but drawing all the detected markers
           markers[i].draw(inImage,cv::Scalar(0,0,255),2);
@@ -218,7 +275,7 @@ public:
         {
           //show input with augmented information
           cv_bridge::CvImage out_msg;
-          out_msg.header.stamp = ros::Time::now();
+          out_msg.header.stamp = curr_stamp;
           out_msg.encoding = sensor_msgs::image_encodings::RGB8;
           out_msg.image = inImage;
           image_pub.publish(out_msg.toImageMsg());
@@ -228,7 +285,7 @@ public:
         {
           //show also the internal image resulting from the threshold operation
           cv_bridge::CvImage debug_msg;
-          debug_msg.header.stamp = ros::Time::now();
+          debug_msg.header.stamp = curr_stamp;
           debug_msg.encoding = sensor_msgs::image_encodings::MONO8;
           debug_msg.image = mDetector.getThresholdedImage();
           debug_pub.publish(debug_msg.toImageMsg());
