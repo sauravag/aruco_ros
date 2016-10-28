@@ -5,7 +5,7 @@ Software package and ROS wrappers of the [Aruco][1] Augmented Reality marker det
 
 ### Usage
 
-1. You need to install the usb_webcam package to read the camera image
+1. You need to install the usb_webcam package to read the camera image: $sudo apt-get install ros-indigo-usb-cam
 2. $cd ~/catkin_ws/src/
 3. $git clone https://github.com/sauravag/aruco_ros.git
 4. $cd ~/catkin_ws
